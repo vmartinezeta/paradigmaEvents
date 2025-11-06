@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import EventEmitter from "events";
 import readline from "readline";
 
 class Ficha {
@@ -213,7 +214,7 @@ class Linea {
             }
             return celda;
         })
-            .map(({ficha}) => ficha.id)
+            .map(({ ficha }) => ficha.id)
             .every(numero => numero === id);
     }
 
@@ -223,85 +224,121 @@ class Linea {
 
 }
 
-function pregunta(pregunta) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
 
-    return new Promise((resolve) => {
-        rl.question(pregunta, (respuesta) => {
-            rl.close();
-            resolve(respuesta);
-        });
-    });
-}
+class TicTacToe extends EventEmitter {
+    constructor(proxy) {
+        super();
+        this.proxy = proxy;
+    }
 
-function comprobarGanador() {
-
-}
-
-function colocacionPlayer() {
-    const proxy = new CuadriculaProxy();
-
-    async function colocacionJugador() {
-        console.log(chalk.underline.italic("Turno: ", proxy.fichaEnJuego.simbolo));
-        console.log(proxy.cuadricula.toString());
-        pregunta("Ingrese un numero de 1-9: ").then(numero => {
-            const celda = proxy.cuadricula.fromId(+numero);
+    async colocacionJugador() {
+        console.log(chalk.underline.italic("Turno: ", this.proxy.fichaEnJuego.simbolo));
+        console.log(this.proxy.cuadricula.toString());
+        this.pregunta("Ingrese un numero de 1-9: ").then(numero => {
+            const celda = this.proxy.cuadricula.fromId(+numero);
 
             if (celda && celda.isDisponible()) {
                 const { x, y } = celda;
-                proxy.hacerMovimiento(x, y);
-                if (proxy.finalizoJuego()) {
-                    console.log(proxy.cuadricula.toString());
-                    if (proxy.hayGanador()) {
-                        if (proxy.ganoCpu()) {
-                            console.log("Haz fallado");
+                this.proxy.hacerMovimiento(x, y);
+                if (this.proxy.finalizoJuego()) {
+                    console.log(this.proxy.cuadricula.toString());
+                    if (this.proxy.hayGanador()) {
+                        if (this.proxy.ganoCpu()) {
+                            // console.log("Haz fallado");
+                            this.emit("ganador", {
+                                isCPU:true,
+                                linea: this.proxy.getLineaGanador()
+                            });
                         } else {
-                            console.log("Haz ganado.");
+                            this.emit("ganador", {
+                                isCPU:false,
+                                linea: this.proxy.getLineaGanador()
+                            });
                         }
-                    } else if (proxy.hayEmpate()) {
-                        console.log("Hay un empate");
+                    } else if (this.proxy.hayEmpate()) {
+                        // console.log("Hay un empate");
+                        this.emit("empate");
                     }
                     return;
                 }
-                proxy.cambiarTurno();
-                colocacionCPU();
+                this.proxy.cambiarTurno();
+                this.colocacionCPU();
             } else {
-                colocacionJugador();
+                this.colocacionJugador();
             }
         });
     }
 
-    function colocacionCPU() {
+    colocacionCPU() {
         console.clear();
         console.log("loading...");
         setTimeout(() => {
             console.clear();
-            console.log(chalk.underline.italic("Turno: ", proxy.fichaEnJuego.simbolo));
-            proxy.hacerMovimiento();
-            console.log(proxy.cuadricula.toString());
-            if (proxy.finalizoJuego()) {
-                if (proxy.hayGanador()) {
-                    if (proxy.ganoCpu()) {
-                        console.log("Haz fallado");
+            console.log(chalk.underline.italic("Turno: ", this.proxy.fichaEnJuego.simbolo));
+            this.proxy.hacerMovimiento();
+            console.log(this.proxy.cuadricula.toString());
+            if (this.proxy.finalizoJuego()) {
+                if (this.proxy.hayGanador()) {
+                    if (this.proxy.ganoCpu()) {
+                            this.emit("ganador", {
+                                isCPU:true,
+                                linea: this.proxy.getLineaGanador()
+                            });
                     } else {
-                        console.log("Haz ganado.");
+                            this.emit("ganador", {
+                                isCPU:false,
+                                linea: this.proxy.getLineaGanador()
+                            });
                     }
-                } else if (proxy.hayEmpate()) {
-                    console.log("Hay un empate");
+                } else if (this.proxy.hayEmpate()) {
+                    this.emit("empate");
                 }
                 return;
             }
-            proxy.cambiarTurno();
-            colocacionJugador();
+            this.proxy.cambiarTurno();
+            this.colocacionJugador();
         }, 1000);
     }
 
-    return colocacionCPU;
+    pregunta(pregunta) {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        return new Promise((resolve) => {
+            rl.question(pregunta, (respuesta) => {
+                rl.close();
+                resolve(respuesta);
+            });
+        });
+    }
+
+    start() {
+        this.colocacionCPU();
+    }
+
 }
 
 
-const colocacion = colocacionPlayer();
-colocacion();
+function playGame() {
+    const proxy = new CuadriculaProxy();
+    const tictactoe = new TicTacToe(proxy);
+    tictactoe.start();
+
+    tictactoe.on("ganador", ({isCPU, linea})=> {
+        if (isCPU) {
+            console.log("Haz fallado.");            
+        } else {
+            console.log("Haz ganado.");
+        }
+        console.log("Orientacion: ",linea.orientacion);
+        console.log(linea.toString());
+    });
+
+    tictactoe.on("empate", () => {
+        console.log("empataron");
+    });
+}
+
+playGame(); // reintentar
