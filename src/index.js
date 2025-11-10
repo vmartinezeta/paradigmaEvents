@@ -117,6 +117,10 @@ class PlayerCPU extends Player {
         super(ficha);
     }
 
+    colocar(x, y, cuadricula) {
+        this.colocarFicha(x, y, cuadricula);
+    }
+
     colocarRandom(cuadricula) {
         const celdas = cuadricula.toArray().filter(celda => celda.isDisponible());
         const index = Math.floor(Math.random() * celdas.length);
@@ -144,10 +148,31 @@ class CuadriculaProxy extends PlayerCPU {
 
     hacerMovimiento(x, y) {
         if (this.isCPU()) {
-            this.colocarRandom(this.cuadricula);
+            const result = this.puedeGanarCPU();
+            if (result.ok) {
+                const l = result.linea;
+                const {x, y} = l.getCeldaDisponible();
+                this.colocar(x, y, this.cuadricula);
+            } else {
+                this.colocarRandom(this.cuadricula);
+            }
         } else {
             this.jugador.colocarFicha(x, y, this.cuadricula);
         }
+    }
+
+
+    puedeGanarCPU() {
+        for (const l of this.cuadricula.toLineaArray()) {
+            const lineaManager = new LineaManager(l, this.ficha);
+            if (lineaManager.puedeGanar()) {
+                return {
+                    ok: true,
+                    linea: l
+                };
+            }
+        }
+        return {ok: false, linea:null};
     }
 
     isCPU() {
@@ -155,8 +180,13 @@ class CuadriculaProxy extends PlayerCPU {
     }
 
     getLineaGanador() {
+        let ficha = this.jugador.ficha;
+        if (this.ganoCpu()) {
+            ficha = this.ficha;
+        }
         for (const l of this.cuadricula.toLineaArray()) {
-            if (l.hayGanador()) {
+            const lineaManager = new LineaManager(l, ficha);
+            if (lineaManager.hayGanador()) {
                 return l;
             }
         }
@@ -164,17 +194,24 @@ class CuadriculaProxy extends PlayerCPU {
     }
 
     ganoCpu() {
-        const l = this.getLineaGanador();
-
-        if (l && l.isPoseedor(this.ficha.id)) {
-            return true;
+        for (const l of this.cuadricula.toLineaArray()) {
+            const lineaManager = new LineaManager(l, this.ficha);
+            if (lineaManager.hayGanador()) {
+                return true;
+            }
         }
         return false;
     }
 
     hayGanador() {
         for (const l of this.cuadricula.toLineaArray()) {
-            if (l.hayGanador()) {
+            let lineaManager = new LineaManager(l, this.ficha);
+            if (lineaManager.hayGanador()) {
+                return true;
+            } 
+
+            lineaManager = new LineaManager(l, this.jugador.ficha);
+            if (lineaManager.hayGanador()) {
                 return true;
             }
         }
@@ -191,35 +228,52 @@ class CuadriculaProxy extends PlayerCPU {
 
 }
 
+class LineaManager {
+    constructor(linea, propietario){
+        this.linea = linea;
+        this.propietario = propietario;
+    }
+
+    hayGanador() {
+        return this.linea.toBitArray().every(bit => bit === this.propietario.id);
+    }
+
+    puedeGanar() {
+        const l = this.linea.newInstance();
+        l.eliminarEspacios();
+        return l.celdas.length === 2 && l.celdas.every(c => c.ficha.id === this.propietario.id);
+    }
+}
+
 class Linea {
     constructor(celdas, orientacion) {
         this.celdas = celdas;
         this.orientacion = orientacion;
-    }
+    }    
 
-    hayGanador() {
-        return [0, 3].includes(this.toBit());
-    }
-
-    toBit() {
-        return this.celdas.reduce((total, celda) => total + celda.ficha.id, 0);
-    }
-
-    isPoseedor(id) {
-        return this.celdas.map(celda => {
-            if (celda.isDisponible()) {
-                const nueva = celda.newInstance();
-                nueva.ficha.id = id;
-                return nueva;
-            }
-            return celda;
-        })
-            .map(({ ficha }) => ficha.id)
-            .every(numero => numero === id);
+    toBitArray() {
+        return this.celdas.map(c => c.ficha.id);
     }
 
     toString() {
         return this.celdas.reduce((text, celda) => text + "\t" + celda.ficha.simbolo, "");
+    }
+
+    getCeldaDisponible () {
+        return this.celdas.find(c => c.isDisponible());
+    }
+
+    newInstance() {
+        return new Linea(this.celdas, this.orientacion);
+    }
+
+    eliminarEspacios() {
+        for(let i=0; i<3; i++) {
+            const celda = this.celdas[i];
+            if (celda && celda.isDisponible()) {
+                this.celdas.splice(i, 1);
+            }
+        }
     }
 
 }
@@ -326,9 +380,11 @@ function playGame() {
     const tictactoe = new TicTacToe(proxy);
     tictactoe.start();
 
+    
+
     tictactoe.on("ganador", ({isCPU, linea})=> {
         if (isCPU) {
-            console.log("Haz fallado.");            
+            console.log("Haz fallado.");        
         } else {
             console.log("Haz ganado.");
         }
