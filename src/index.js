@@ -100,41 +100,71 @@ class Cuadricula {
 }
 
 class Player {
-    constructor(ficha) {
+    constructor(ficha, cuadricula) {
         this.ficha = ficha;
+        this.cuadricula = cuadricula;
     }
 
-    colocarFicha(x, y, cuadricula) {
-        const celda = cuadricula.fromXY(x, y);
+    colocarFicha(x, y) {
+        const celda = this.cuadricula.fromXY(x, y);
         celda.ficha = this.ficha;
-        cuadricula.actualizarCelda(celda);
+        this.cuadricula.actualizarCelda(celda);
+    }
+
+    puedeGanar() {
+        for (const l of this.cuadricula.toLineaArray()) {
+            const lineaManager = new LineaManager(l, this.ficha);
+            if (lineaManager.puedeGanar()) {
+                return {
+                    ok: true,
+                    linea: l
+                };
+            }
+        }
+        return { ok: false, linea: null };
+    }
+
+    gano() {
+        for (const l of this.cuadricula.toLineaArray()) {
+            const lineaManager = new LineaManager(l, this.ficha);
+            if (lineaManager.hayGanador()) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }
 
 class PlayerCPU extends Player {
-    constructor(ficha) {
-        super(ficha);
+    constructor(ficha, cuadricula) {
+        super(ficha, cuadricula);
     }
 
-    colocar(x, y, cuadricula) {
-        this.colocarFicha(x, y, cuadricula);
-    }
-
-    colocarRandom(cuadricula) {
-        const celdas = cuadricula.toArray().filter(celda => celda.isDisponible());
+    colocarRandom() {
+        const celdas = this.cuadricula.toArray().filter(celda => celda.isDisponible());
         const index = Math.floor(Math.random() * celdas.length);
         const { x, y } = celdas[index];
-        this.colocarFicha(x, y, cuadricula);
+        this.colocarFicha(x, y);
+    }
+
+    start() {
+        const result = this.puedeGanar();
+        if (result.ok) {
+            const l = result.linea;
+            const { x, y } = l.getCeldaDisponible();
+            this.colocarFicha(x, y);
+        } else {
+            this.colocarRandom();
+        }
     }
 
 }
 
 class CuadriculaProxy extends PlayerCPU {
-    constructor() {
-        super(new Ficha(0, "0"));
-        this.jugador = new Player(new Ficha(1, "x"));
-        this.cuadricula = new Cuadricula();
+    constructor(fichaCPU, fichaJugador, cuadricula) {
+        super(fichaCPU, cuadricula);
+        this.jugador = new Player(fichaJugador, cuadricula);
         this.fichaEnJuego = this.ficha;
     }
 
@@ -148,31 +178,10 @@ class CuadriculaProxy extends PlayerCPU {
 
     hacerMovimiento(x, y) {
         if (this.isCPU()) {
-            const result = this.puedeGanarCPU();
-            if (result.ok) {
-                const l = result.linea;
-                const {x, y} = l.getCeldaDisponible();
-                this.colocar(x, y, this.cuadricula);
-            } else {
-                this.colocarRandom(this.cuadricula);
-            }
+            this.start();
         } else {
-            this.jugador.colocarFicha(x, y, this.cuadricula);
+            this.jugador.colocarFicha(x, y);
         }
-    }
-
-
-    puedeGanarCPU() {
-        for (const l of this.cuadricula.toLineaArray()) {
-            const lineaManager = new LineaManager(l, this.ficha);
-            if (lineaManager.puedeGanar()) {
-                return {
-                    ok: true,
-                    linea: l
-                };
-            }
-        }
-        return {ok: false, linea:null};
     }
 
     isCPU() {
@@ -181,7 +190,7 @@ class CuadriculaProxy extends PlayerCPU {
 
     getLineaGanador() {
         let ficha = this.jugador.ficha;
-        if (this.ganoCpu()) {
+        if (this.gano()) {
             ficha = this.ficha;
         }
         for (const l of this.cuadricula.toLineaArray()) {
@@ -193,29 +202,8 @@ class CuadriculaProxy extends PlayerCPU {
         return null;
     }
 
-    ganoCpu() {
-        for (const l of this.cuadricula.toLineaArray()) {
-            const lineaManager = new LineaManager(l, this.ficha);
-            if (lineaManager.hayGanador()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     hayGanador() {
-        for (const l of this.cuadricula.toLineaArray()) {
-            let lineaManager = new LineaManager(l, this.ficha);
-            if (lineaManager.hayGanador()) {
-                return true;
-            } 
-
-            lineaManager = new LineaManager(l, this.jugador.ficha);
-            if (lineaManager.hayGanador()) {
-                return true;
-            }
-        }
-        return false;
+        return this.gano() || this.jugador.gano();
     }
 
     hayEmpate() {
@@ -229,7 +217,7 @@ class CuadriculaProxy extends PlayerCPU {
 }
 
 class LineaManager {
-    constructor(linea, propietario){
+    constructor(linea, propietario) {
         this.linea = linea;
         this.propietario = propietario;
     }
@@ -239,17 +227,16 @@ class LineaManager {
     }
 
     puedeGanar() {
-        const l = this.linea.newInstance();
-        l.eliminarEspacios();
-        return l.celdas.length === 2 && l.celdas.every(c => c.ficha.id === this.propietario.id);
+        return this.linea.tieneUnEspacio() && this.linea.getCeldaOcupadas().every(c => c.ficha.id === this.propietario.id);
     }
+
 }
 
 class Linea {
     constructor(celdas, orientacion) {
         this.celdas = celdas;
         this.orientacion = orientacion;
-    }    
+    }
 
     toBitArray() {
         return this.celdas.map(c => c.ficha.id);
@@ -259,7 +246,7 @@ class Linea {
         return this.celdas.reduce((text, celda) => text + "\t" + celda.ficha.simbolo, "");
     }
 
-    getCeldaDisponible () {
+    getCeldaDisponible() {
         return this.celdas.find(c => c.isDisponible());
     }
 
@@ -267,17 +254,14 @@ class Linea {
         return new Linea(this.celdas, this.orientacion);
     }
 
-    eliminarEspacios() {
-        for(let i=0; i<3; i++) {
-            const celda = this.celdas[i];
-            if (celda && celda.isDisponible()) {
-                this.celdas.splice(i, 1);
-            }
-        }
+    tieneUnEspacio() {
+        return this.celdas.filter(c => c.isDisponible()).length === 1;
     }
 
+    getCeldaOcupadas() {
+        return this.celdas.filter(c => !c.isDisponible());
+    }
 }
-
 
 class TicTacToe extends EventEmitter {
     constructor(proxy) {
@@ -297,15 +281,15 @@ class TicTacToe extends EventEmitter {
                 if (this.proxy.finalizoJuego()) {
                     console.log(this.proxy.cuadricula.toString());
                     if (this.proxy.hayGanador()) {
-                        if (this.proxy.ganoCpu()) {
+                        if (this.proxy.gano()) {
                             // console.log("Haz fallado");
                             this.emit("ganador", {
-                                isCPU:true,
+                                isCPU: true,
                                 linea: this.proxy.getLineaGanador()
                             });
                         } else {
                             this.emit("ganador", {
-                                isCPU:false,
+                                isCPU: false,
                                 linea: this.proxy.getLineaGanador()
                             });
                         }
@@ -333,16 +317,16 @@ class TicTacToe extends EventEmitter {
             console.log(this.proxy.cuadricula.toString());
             if (this.proxy.finalizoJuego()) {
                 if (this.proxy.hayGanador()) {
-                    if (this.proxy.ganoCpu()) {
-                            this.emit("ganador", {
-                                isCPU:true,
-                                linea: this.proxy.getLineaGanador()
-                            });
+                    if (this.proxy.gano()) {
+                        this.emit("ganador", {
+                            isCPU: true,
+                            linea: this.proxy.getLineaGanador()
+                        });
                     } else {
-                            this.emit("ganador", {
-                                isCPU:false,
-                                linea: this.proxy.getLineaGanador()
-                            });
+                        this.emit("ganador", {
+                            isCPU: false,
+                            linea: this.proxy.getLineaGanador()
+                        });
                     }
                 } else if (this.proxy.hayEmpate()) {
                     this.emit("empate");
@@ -374,21 +358,20 @@ class TicTacToe extends EventEmitter {
 
 }
 
-
 function playGame() {
-    const proxy = new CuadriculaProxy();
+    const proxy = new CuadriculaProxy(new Ficha(0, '0'), new Ficha(1, 'x'), new Cuadricula());
     const tictactoe = new TicTacToe(proxy);
     tictactoe.start();
 
-    
 
-    tictactoe.on("ganador", ({isCPU, linea})=> {
+
+    tictactoe.on("ganador", ({ isCPU, linea }) => {
         if (isCPU) {
-            console.log("Haz fallado.");        
+            console.log("Haz fallado.");
         } else {
             console.log("Haz ganado.");
         }
-        console.log("Orientacion: ",linea.orientacion);
+        console.log("Orientacion: ", linea.orientacion);
         console.log(linea.toString());
     });
 
