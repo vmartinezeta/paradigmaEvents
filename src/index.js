@@ -1,6 +1,13 @@
 import chalk from "chalk";
 import EventEmitter from "events";
-import readline from "readline";
+// import readline from "readline";
+import rl from "readline";
+
+const readline = rl.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
 
 class Ficha {
     constructor(id, simbolo) {
@@ -267,12 +274,12 @@ class TicTacToe extends EventEmitter {
     constructor(proxy) {
         super();
         this.proxy = proxy;
+        this.gameActive = true;
     }
 
     async colocacionJugador() {
-        console.log(chalk.underline.italic("Turno: ", this.proxy.fichaEnJuego.simbolo));
         console.log(this.proxy.cuadricula.toString());
-        this.pregunta("Ingrese un numero de 1-9: ").then(numero => {
+        readline.question("Ingrese un numero de 1-9: ", numero => {
             const celda = this.proxy.cuadricula.fromId(+numero);
 
             if (celda && celda.isDisponible()) {
@@ -300,7 +307,7 @@ class TicTacToe extends EventEmitter {
                     return;
                 }
                 this.proxy.cambiarTurno();
-                this.colocacionCPU();
+                this.promptPlayer();
             } else {
                 this.colocacionJugador();
             }
@@ -308,9 +315,6 @@ class TicTacToe extends EventEmitter {
     }
 
     colocacionCPU() {
-        console.clear();
-        console.log("loading...");
-        setTimeout(() => {
             console.clear();
             console.log(chalk.underline.italic("Turno: ", this.proxy.fichaEnJuego.simbolo));
             this.proxy.hacerMovimiento();
@@ -334,8 +338,7 @@ class TicTacToe extends EventEmitter {
                 return;
             }
             this.proxy.cambiarTurno();
-            this.colocacionJugador();
-        }, 1000);
+            this.promptPlayer();
     }
 
     pregunta(pregunta) {
@@ -352,8 +355,89 @@ class TicTacToe extends EventEmitter {
         });
     }
 
-    start() {
+    start2() {
         this.colocacionCPU();
+    }
+
+
+    start() {
+        this.processMainMenu();
+    }
+
+    promptMainMenu() {
+        console.log(`\n🎮 Juego TicTacToe`);
+        console.log('Opciones:');
+        console.log('1. Iniciar juego');
+        console.log('2. Configurar fichas(CPU=0, Jugador=x)');
+        console.log('3. Salir');
+
+        readline.question('Elige una opción: ', (input) => {
+            this.processMainMenu(input.trim());
+        });
+    }
+
+    processMainMenu(option) {
+        switch (option) {
+            case '1':
+                this.promptPlayer();
+                break;
+            case '2':
+                break;
+            case '3':
+                console.log('¡Hasta luego! 👋');
+                readline.close();
+                break;
+            default:
+                console.log('❌ Opción no válida');
+                this.promptMainMenu();
+        }        
+    }
+
+    promptPlayer() {
+        // Si es modo CPU y es el turno de la CPU, entonces la CPU juega
+        if (this.proxy.isCPU()) {
+            console.log('\n🤖 Turno de la CPU...');
+            // Simulamos un pensamiento de la CPU
+            setTimeout(() => {
+                this.colocacionCPU();
+            }, 1000);
+            return;
+        }
+
+        // Es turno de un jugador humano, mostramos el menú
+        console.log(`\n🎮 Turno del jugador: ${this.proxy.fichaEnJuego.simbolo}`);
+        console.log('Opciones:');
+        console.log('1. Hacer movimiento');
+        console.log('2. Deshacer último movimiento');
+        console.log('3. Ver historial');
+        console.log('4. Atras');
+
+        readline.question('Elige una opción: ', (input) => {
+            this.processMenuInput(input.trim());
+        });
+    }
+
+    processMenuInput(option) {
+        switch (option) {
+            case '1':
+                this.colocacionJugador();
+                break;
+            case '2':
+                // this.undoLastMove();
+                break;
+            case '3':
+                // this.showHistory();
+                break;
+            case '4':
+                // console.log('¡Hasta luego! 👋');
+                // readline.close();
+                this.promptMainMenu();
+                this.gameActive = false;
+                break;
+            default:
+                console.log('❌ Opción no válida');
+                this.promptPlayer();
+        }
     }
 
 }
@@ -362,8 +446,6 @@ function playGame() {
     const proxy = new CuadriculaProxy(new Ficha(0, '0'), new Ficha(1, 'x'), new Cuadricula());
     const tictactoe = new TicTacToe(proxy);
     tictactoe.start();
-
-
 
     tictactoe.on("ganador", ({ isCPU, linea }) => {
         if (isCPU) {
@@ -380,4 +462,4 @@ function playGame() {
     });
 }
 
-playGame(); // reintentar
+playGame();
