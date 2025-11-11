@@ -282,44 +282,71 @@ class TicTacToe extends EventEmitter {
         this.proxy = proxy;
     }
 
+    getCelda(input) {
+        const sistemaDecimal = [];
+        for (let i =1; i <10; i++) {
+            sistemaDecimal.push(i);
+        }
+        if (!sistemaDecimal.includes(input)) {
+            return {
+                ok: false,
+                celda: null
+            }
+        }
+        const celda = this.proxy.cuadricula.fromId(input);
+        if (!celda.isDisponible()) {
+            return {
+                ok: false,
+                celda
+            };
+        }
+        return {
+            ok: true,
+            celda
+        };
+    }
+
     async colocacionJugador() {
         console.log(this.proxy.cuadricula.toString());
         const numero = await this.inputConsole("Ingrese un numero de 1-9: ");
-        const celda = this.proxy.cuadricula.fromId(+numero);
+        const {ok, celda} = this.getCelda(+numero);
+        if (!ok) {
+            this.colocacionJugador();
+        }
 
-            if (celda && celda.isDisponible()) {
-                const { x, y } = celda;
-                this.proxy.hacerMovimiento(x, y);
-                if (this.proxy.finalizoJuego()) {
-                    this.emit('gameOver', {
-                        cpu: this.proxy.ficha,
-                        jugador: this.proxy.jugador.ficha
-                    });
-                    console.log(this.proxy.cuadricula.toString());
-                    if (this.proxy.hayGanador()) {
-                        if (this.proxy.gano()) {
-                            // console.log("Haz fallado");
-                            this.emit("ganador", {
-                                isCPU: true,
-                                linea: this.proxy.getLineaGanador()
-                            });
-                        } else {
-                            this.emit("ganador", {
-                                isCPU: false,
-                                linea: this.proxy.getLineaGanador()
-                            });
-                        }
-                    } else if (this.proxy.hayEmpate()) {
-                        // console.log("Hay un empate");
-                        this.emit("empate");
+        // if (celda && celda.isDisponible()) {
+            const { x, y } = celda;
+            this.proxy.hacerMovimiento(x, y);
+            if (this.proxy.finalizoJuego()) {
+                this.emit('gameOver', {
+                    cpu: this.proxy.ficha,
+                    jugador: this.proxy.jugador.ficha
+                });
+                console.log(this.proxy.cuadricula.toString());
+                if (this.proxy.hayGanador()) {
+                    if (this.proxy.gano()) {
+                        // console.log("Haz fallado");
+                        this.emit("ganador", {
+                            isCPU: true,
+                            linea: this.proxy.getLineaGanador()
+                        });
+                    } else {
+                        this.emit("ganador", {
+                            isCPU: false,
+                            linea: this.proxy.getLineaGanador()
+                        });
                     }
-                    return;
+                } else if (this.proxy.hayEmpate()) {
+                    // console.log("Hay un empate");
+                    this.emit("empate");
                 }
-                this.proxy.cambiarTurno();
-                this.promptPlayer();
-            } else {
-                this.colocacionJugador();
+                return;
             }
+            this.proxy.cambiarTurno();
+            this.promptPlayer();
+        // } else {
+            // this.colocacionJugador();
+        // }
     }
 
     colocacionCPU() {
@@ -373,7 +400,7 @@ class TicTacToe extends EventEmitter {
         console.log('3. Salir');
 
         const input = await this.inputConsole('Elige una opción: ');
-        this.processMainMenu(input.trim());        
+        this.processMainMenu(input.trim());
     }
 
     processMainMenu(option) {
@@ -473,8 +500,8 @@ function playGame() {
         console.log("empataron");
     });
 
-    ticTacToe.on('gameOver', ({cpu, jugador}) => {
-        setTimeout(() => {     
+    ticTacToe.on('gameOver', ({ cpu, jugador }) => {
+        setTimeout(() => {
             const proxy = new CuadriculaProxy(cpu, jugador, new Cuadricula());
             ticTacToe.setProxy(proxy);
             ticTacToe.start();
