@@ -1,6 +1,5 @@
 import chalk from "chalk";
 import EventEmitter from "events";
-// import readline from "readline";
 import rl from "readline";
 
 const readline = rl.createInterface({
@@ -172,7 +171,7 @@ class CuadriculaProxy extends PlayerCPU {
     constructor(fichaCPU, fichaJugador, cuadricula) {
         super(fichaCPU, cuadricula);
         this.jugador = new Player(fichaJugador, cuadricula);
-        this.fichaEnJuego = this.ficha;
+        this.fichaEnJuego = fichaCPU;
     }
 
     cambiarTurno() {
@@ -355,11 +354,6 @@ class TicTacToe extends EventEmitter {
         });
     }
 
-    start2() {
-        this.colocacionCPU();
-    }
-
-
     start() {
         this.processMainMenu();
     }
@@ -368,12 +362,23 @@ class TicTacToe extends EventEmitter {
         console.log(`\n🎮 Juego TicTacToe`);
         console.log('Opciones:');
         console.log('1. Iniciar juego');
-        console.log('2. Configurar fichas(CPU=0, Jugador=x)');
+        console.log(`2. Configurar fichas(CPU=${this.proxy.ficha.simbolo}, Jugador=${this.proxy.jugador.ficha.simbolo})`);
         console.log('3. Salir');
 
         readline.question('Elige una opción: ', (input) => {
             this.processMainMenu(input.trim());
         });
+    }
+
+    intercambiarFichas(simbolo) {
+        if (![this.proxy.ficha.simbolo, this.proxy.jugador.ficha.simbolo].includes(simbolo)) return;
+
+        if (this.proxy.ficha.simbolo !== simbolo) {
+            const ficha = this.proxy.ficha;
+            this.proxy.ficha = this.proxy.jugador.ficha;
+            this.proxy.fichaEnJuego = this.proxy.ficha
+            this.proxy.jugador.ficha = ficha;
+        }
     }
 
     processMainMenu(option) {
@@ -382,6 +387,7 @@ class TicTacToe extends EventEmitter {
                 this.promptPlayer();
                 break;
             case '2':
+                this.promptIntercambioFichas();
                 break;
             case '3':
                 console.log('¡Hasta luego! 👋');
@@ -391,6 +397,14 @@ class TicTacToe extends EventEmitter {
                 console.log('❌ Opción no válida');
                 this.promptMainMenu();
         }        
+    }
+
+    promptIntercambioFichas() {
+        console.log(`CPU=${this.proxy.ficha.simbolo}, Jugador=${this.proxy.jugador.ficha.simbolo}`);
+        readline.question('Ingrese la ficha: ', (input) => {
+            this.intercambiarFichas(input.trim().toLocaleLowerCase());
+            this.promptMainMenu();
+        });
     }
 
     promptPlayer() {
