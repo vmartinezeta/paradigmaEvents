@@ -1,6 +1,7 @@
 import EventEmitter from "events";
 import chalk from "chalk";
 import readline from "readline";
+import { cp } from "fs";
 
 
 class Ficha {
@@ -310,41 +311,35 @@ class UIManager extends EventEmitter {
 
     cambiarTurno() {
         this.proxy.cambiarTurno();
-        this.emit('cambioTurno', {turno: this.proxy.fichaEnJuego.simbolo});
+        this.emit('cambioTurno', { turno: this.proxy.fichaEnJuego.simbolo });
     }
 
     async colocacionJugador() {
-        console.log(this.proxy.cuadricula.toString());
         const numero = await this.inputConsole("Ingrese un numero de 1-9: ");
         const { ok, celda } = this.getCelda(+numero);
         if (!ok) {
-            this.colocacionJugador();
-            // emitir movimiento rechazado
+            // this.emit('validacion', { ok, celda });
+            return this.colocacionJugador();
         }
 
         const { x, y } = celda;
         this.proxy.hacerMovimiento(x, y);
+
         if (this.proxy.finalizoJuego()) {
             this.emit('gameOver', {
                 cpu: this.proxy.ficha,
                 jugador: this.proxy.jugador.ficha
             });
-            console.log(this.proxy.cuadricula.toString());
             if (this.proxy.hayGanador()) {
+                let isCPU = false;
                 if (this.proxy.gano()) {
-                    // console.log("Haz fallado");
-                    this.emit("ganador", {
-                        isCPU: true,
-                        linea: this.proxy.getLineaGanador()
-                    });
-                } else {
-                    this.emit("ganador", {
-                        isCPU: false,
-                        linea: this.proxy.getLineaGanador()
-                    });
+                    isCPU = true;
                 }
+                this.emit("ganador", {
+                    isCPU,
+                    linea: this.proxy.getLineaGanador()
+                });
             } else if (this.proxy.hayEmpate()) {
-                // console.log("Hay un empate");
                 this.emit("empate");
             }
             return;
@@ -354,27 +349,22 @@ class UIManager extends EventEmitter {
     }
 
     colocacionCPU() {
-        console.clear();
-        console.log(chalk.underline.italic("Turno: ", this.proxy.fichaEnJuego.simbolo));
         this.proxy.hacerMovimiento();
-        console.log(this.proxy.cuadricula.toString());
+        this.emit('colocacion', { isCPU: true, turno: this.proxy.fichaEnJuego.simbolo });
         if (this.proxy.finalizoJuego()) {
             this.emit('gameOver', {
                 cpu: this.proxy.ficha,
                 jugador: this.proxy.jugador.ficha
             });
             if (this.proxy.hayGanador()) {
+                let isCPU = false;
                 if (this.proxy.gano()) {
-                    this.emit("ganador", {
-                        isCPU: true,
-                        linea: this.proxy.getLineaGanador()
-                    });
-                } else {
-                    this.emit("ganador", {
-                        isCPU: false,
-                        linea: this.proxy.getLineaGanador()
-                    });
+                    isCPU = true;
                 }
+                this.emit("ganador", {
+                    isCPU,
+                    linea: this.proxy.getLineaGanador()
+                });
             } else if (this.proxy.hayEmpate()) {
                 this.emit("empate");
             }
@@ -454,7 +444,7 @@ class UIManager extends EventEmitter {
     async promptPlayer() {
         // Si es modo CPU y es el turno de la CPU, entonces la CPU juega
         if (this.proxy.isCPU()) {
-            console.log('\n🤖 Turno de la CPU...');
+            // console.log('\n🤖 Turno de la CPU...');
             // Simulamos un pensamiento de la CPU
             setTimeout(() => {
                 this.colocacionCPU();
@@ -463,7 +453,7 @@ class UIManager extends EventEmitter {
         }
 
         // Es turno de un jugador humano, mostramos el menú
-        console.log(`\n🎮 Turno del jugador: ${this.proxy.fichaEnJuego.simbolo}`);
+        // console.log(`\n🎮 Turno del jugador: ${this.proxy.fichaEnJuego.simbolo}`);
         console.log('Opciones:');
         console.log('1. Hacer movimiento');
         console.log('2. Deshacer último movimiento');
@@ -477,11 +467,10 @@ class UIManager extends EventEmitter {
     processMenuInput(option) {
         switch (option) {
             case '1':
+                this.emit('colocacion', {isCPU:false, turno: this.proxy.fichaEnJuego.simbolo});
                 this.colocacionJugador();
                 break;
             case '4':
-                // console.log('¡Hasta luego! 👋');
-                // readline.close();
                 this.promptMainMenu();
                 this.gameActive = false;
                 break;
@@ -494,23 +483,42 @@ class UIManager extends EventEmitter {
 }
 
 
-class TicTacToe extends UIManager { 
+class TicTacToe extends UIManager {
     constructor(proxy) {
         super(proxy);
     }
 
     setUp() {
-        this.on('validacion', () => {
-            // player lugar utilizado o fuera de rango
+        this.on('validacion', ({ ok, celda }) => {
+            if (!ok) {
+                console.log('Lugar invalido = ', celda.x, celda.y);
+            }
         });
 
-        this.on('colocacion', ()=> {
-            // cpu | player
+        this.on('colocacion', ({ isCPU,turno }) => {
+            console.log(`Turno de ${isCPU?'CPU':'Player'} = `, turno);
+            this.tablero();
         });
 
-        this.on('ganador', ()=> {});
-        this.on('empate', ()=> {});
-        this.on('gameover', ()=> {});
+        this.on('ganador', ({isCPU, linea}) => {
+            if (isCPU) {
+                console.log('Haz fallado.');
+            } else {
+                console.log('Haz ganado.');
+            }
+            console.log('orientacion: ', linea.orientacion);
+         });
+
+        this.on('empate', () => { 
+            console.log('empataron');
+        });
+
+        this.on('gameOver', ({cpu, jugador}) => {
+            this.readline.close();
+            setTimeout(() => {            
+                playGame(cpu, jugador);
+            }, 1000);
+        });
     }
 
     tablero() {
@@ -521,30 +529,11 @@ class TicTacToe extends UIManager {
 }
 
 
-class TicTacToeDecorated extends UIManager {
-    constructor(proxy) {
-        super(proxy);
-    }
 
-    setUp() {}
-
-    tablero() {
-        console.log('\n  0   1   2');
-        console.log(' ┌───┬───┬───┐ ');
-        this.proxy.cuadricula.celdas.forEach((row, i) => {
-            console.log(`${i}│ ${row.map(c => c.ficha.simbolo).join(' │ ')} │`);
-            if (i < 2) console.log(' ├───┼───┼───┤ ');
-        });
-        console.log(' └───┴───┴───┘ ');
-    }
-
-}
-
-
-function playGame() {
-    const proxy = new CuadriculaProxy(new Ficha(0, '0'), new Ficha(1, 'x'), new Cuadricula());
+function playGame(fichaCPU, fichaPlayer) {
+    const proxy = new CuadriculaProxy( fichaCPU, fichaPlayer, new Cuadricula());
     const ticTacToe = new TicTacToe(proxy);
     ticTacToe.render();
 }
 
-playGame();
+playGame(new Ficha(0, '0'), new Ficha(1, 'x'));
