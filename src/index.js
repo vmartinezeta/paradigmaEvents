@@ -267,7 +267,7 @@ class CuadriculaProxy extends CPUPlayer {
 }
 
 
-class TicTacToe extends EventEmitter {
+class UIManager extends EventEmitter {
     constructor(proxy) {
         super();
         this.proxy = proxy;
@@ -276,6 +276,8 @@ class TicTacToe extends EventEmitter {
             input: process.stdin,
             output: process.stdout
         });
+
+        this.setUp();
     }
 
     setProxy(proxy) {
@@ -284,7 +286,7 @@ class TicTacToe extends EventEmitter {
 
     getCelda(input) {
         const sistemaDecimal = [];
-        for (let i =1; i <10; i++) {
+        for (let i = 1; i < 10; i++) {
             sistemaDecimal.push(i);
         }
         if (!sistemaDecimal.includes(input)) {
@@ -306,47 +308,49 @@ class TicTacToe extends EventEmitter {
         };
     }
 
+    cambiarTurno() {
+        this.proxy.cambiarTurno();
+        this.emit('cambioTurno', {turno: this.proxy.fichaEnJuego.simbolo});
+    }
+
     async colocacionJugador() {
         console.log(this.proxy.cuadricula.toString());
         const numero = await this.inputConsole("Ingrese un numero de 1-9: ");
-        const {ok, celda} = this.getCelda(+numero);
+        const { ok, celda } = this.getCelda(+numero);
         if (!ok) {
             this.colocacionJugador();
+            // emitir movimiento rechazado
         }
 
-        // if (celda && celda.isDisponible()) {
-            const { x, y } = celda;
-            this.proxy.hacerMovimiento(x, y);
-            if (this.proxy.finalizoJuego()) {
-                this.emit('gameOver', {
-                    cpu: this.proxy.ficha,
-                    jugador: this.proxy.jugador.ficha
-                });
-                console.log(this.proxy.cuadricula.toString());
-                if (this.proxy.hayGanador()) {
-                    if (this.proxy.gano()) {
-                        // console.log("Haz fallado");
-                        this.emit("ganador", {
-                            isCPU: true,
-                            linea: this.proxy.getLineaGanador()
-                        });
-                    } else {
-                        this.emit("ganador", {
-                            isCPU: false,
-                            linea: this.proxy.getLineaGanador()
-                        });
-                    }
-                } else if (this.proxy.hayEmpate()) {
-                    // console.log("Hay un empate");
-                    this.emit("empate");
+        const { x, y } = celda;
+        this.proxy.hacerMovimiento(x, y);
+        if (this.proxy.finalizoJuego()) {
+            this.emit('gameOver', {
+                cpu: this.proxy.ficha,
+                jugador: this.proxy.jugador.ficha
+            });
+            console.log(this.proxy.cuadricula.toString());
+            if (this.proxy.hayGanador()) {
+                if (this.proxy.gano()) {
+                    // console.log("Haz fallado");
+                    this.emit("ganador", {
+                        isCPU: true,
+                        linea: this.proxy.getLineaGanador()
+                    });
+                } else {
+                    this.emit("ganador", {
+                        isCPU: false,
+                        linea: this.proxy.getLineaGanador()
+                    });
                 }
-                return;
+            } else if (this.proxy.hayEmpate()) {
+                // console.log("Hay un empate");
+                this.emit("empate");
             }
-            this.proxy.cambiarTurno();
-            this.promptPlayer();
-        // } else {
-            // this.colocacionJugador();
-        // }
+            return;
+        }
+        this.proxy.cambiarTurno();
+        this.promptPlayer();
     }
 
     colocacionCPU() {
@@ -388,7 +392,15 @@ class TicTacToe extends EventEmitter {
         });
     }
 
-    start() {
+    setUp() {
+        throw new TypeError('Metodo abstracto para escuchar los eventos del core');
+    }
+
+    tablero() {
+        throw new TypeError('Metodo abstracto para mostrar el tablero');
+    }
+
+    render() {
         this.promptMainMenu();
     }
 
@@ -481,33 +493,58 @@ class TicTacToe extends EventEmitter {
 
 }
 
+
+class TicTacToe extends UIManager { 
+    constructor(proxy) {
+        super(proxy);
+    }
+
+    setUp() {
+        this.on('validacion', () => {
+            // player lugar utilizado o fuera de rango
+        });
+
+        this.on('colocacion', ()=> {
+            // cpu | player
+        });
+
+        this.on('ganador', ()=> {});
+        this.on('empate', ()=> {});
+        this.on('gameover', ()=> {});
+    }
+
+    tablero() {
+        this.proxy.cuadricula.toLineaArray().filter(l => l.orientacion === 'HORIZONTAL').forEach(l => {
+            console.log(l.toString());
+        });
+    }
+}
+
+
+class TicTacToeDecorated extends UIManager {
+    constructor(proxy) {
+        super(proxy);
+    }
+
+    setUp() {}
+
+    tablero() {
+        console.log('\n  0   1   2');
+        console.log(' ┌───┬───┬───┐ ');
+        this.proxy.cuadricula.celdas.forEach((row, i) => {
+            console.log(`${i}│ ${row.map(c => c.ficha.simbolo).join(' │ ')} │`);
+            if (i < 2) console.log(' ├───┼───┼───┤ ');
+        });
+        console.log(' └───┴───┴───┘ ');
+    }
+
+}
+
+
 function playGame() {
     const proxy = new CuadriculaProxy(new Ficha(0, '0'), new Ficha(1, 'x'), new Cuadricula());
     const ticTacToe = new TicTacToe(proxy);
-    ticTacToe.start();
-
-    ticTacToe.on("ganador", ({ isCPU, linea }) => {
-        if (isCPU) {
-            console.log(chalk.underline.bold("Haz fallado."));
-        } else {
-            console.log(chalk.underline.bold("Haz ganado."));
-        }
-        console.log("Orientacion: ", linea.orientacion);
-        console.log(linea.toString());
-    });
-
-    ticTacToe.on("empate", () => {
-        console.log("empataron");
-    });
-
-    ticTacToe.on('gameOver', ({ cpu, jugador }) => {
-        setTimeout(() => {
-            const proxy = new CuadriculaProxy(cpu, jugador, new Cuadricula());
-            ticTacToe.setProxy(proxy);
-            ticTacToe.start();
-        }, 1000);
-    });
-
+    ticTacToe.render();
 }
 
 playGame();
