@@ -1,7 +1,5 @@
 import EventEmitter from "events";
-import chalk from "chalk";
 import readline from "readline";
-import { cp } from "fs";
 
 
 class Ficha {
