@@ -264,9 +264,10 @@ class CuadriculaProxy extends CPUPlayer {
 }
 
 class UIManager extends EventEmitter {
-    constructor(proxy) {
+    constructor(proxy, language) {
         super();
         this.proxy = proxy;
+        this.language = LanguageStrategy.getStrategy(language);
         this.gameActive = true;
         this.readline = readline.createInterface({
             input: process.stdin,
@@ -371,13 +372,13 @@ class UIManager extends EventEmitter {
     }
 
     async promptMainMenu() {
-        console.log(`\n🎮 Juego TicTacToe`);
-        console.log('Opciones:');
-        console.log('1. Iniciar juego');
-        console.log(`2. Configurar fichas(CPU=${this.proxy.ficha.simbolo}, Jugador=${this.proxy.jugador.ficha.simbolo})`);
-        console.log('3. Salir');
+        const cpu = this.proxy.ficha.simbolo;
+        const player = this.proxy.jugador.ficha.simbolo;
 
-        const input = await this.inputConsole('Elige una opción: ');
+        console.log(this.language.translations.welcome);
+        console.log(this.language.translations.mainMenu(cpu, player));
+
+        const input = await this.inputConsole(this.language.translations.inputOption);
         this.processMainMenu(input.trim());
     }
 
@@ -390,7 +391,7 @@ class UIManager extends EventEmitter {
                 this.promptIntercambioFichas();
                 break;
             case '3':
-                console.log('¡Hasta luego! 👋');
+                console.log(this.language.translations.gameAbort);
                 this.readline.close();
                 break;
             default:
@@ -418,11 +419,8 @@ class UIManager extends EventEmitter {
     }
 
     printSubMenu() {
-        console.log('Opciones:');
-        console.log('1. Hacer movimiento');
-        console.log('2. Deshacer último movimiento');
-        console.log('3. Ver historial');
-        console.log('4. Atras');
+        console.log(this.language.translations.subMenu());
+
     }
 
     async promptPlayer() {
@@ -438,7 +436,7 @@ class UIManager extends EventEmitter {
         // Es turno de un jugador humano, mostramos el menú
         // console.log(`\n🎮 Turno del jugador: ${this.proxy.fichaEnJuego.simbolo}`);
         this.emit('turno:player', { turno: this.proxy.fichaEnJuego.simbolo });
-        const input = await this.inputConsole('Elige una opción: ');
+        const input = await this.inputConsole(this.language.translations.inputCell);
         this.processMenuInput(input.trim());
     }
 
@@ -508,32 +506,32 @@ class TicTacToe extends UIManager {
 }
 
 class TicTacToeDecorated extends UIManager {
-    constructor(proxy) {
-        super(proxy);
+    constructor(proxy, language) {
+        super(proxy, language);
     }
 
     setUp() {
         this.on('turno:CPU', ({ turno }) => {
-            console.log(chalk.underline.bold('\n🤖 Turno de la CPU = ', turno));
+            console.log(chalk.underline.bold(this.language.translations.turn(turno)));
             this.tablero();
         });
 
         this.on('turno:player', ({ turno }) => {
-            console.log(chalk.underline.bold('👋 Turno de Player = ', turno));
+            console.log(chalk.underline.bold(this.language.translations.turn(turno)));
             this.printSubMenu();
         });
 
         this.on('ganador', ({ isCPU, linea }) => {
             if (isCPU) {
-                console.log(chalk.italic('Haz fallado.'));
+                console.log(chalk.italic(this.language.translations.loser));
             } else {
-                console.log(chalk.italic('Haz ganado.'));
+                console.log(chalk.italic(this.language.translations.winner));
             }
-            console.log(chalk.bold('Orientacion: ', linea.orientacion));
+            console.log(chalk.bold(this.language.translations.orientation(linea.orientacion)));
         });
 
         this.on('empate', () => {
-            console.log(chalk.bold('Empataron'));
+            console.log(chalk.bold(this.language.translations.tied));
         });
 
         this.on('gameOver', ({ cpu, jugador }) => {
@@ -541,7 +539,7 @@ class TicTacToeDecorated extends UIManager {
             if (this.proxy.hayGanador() && !this.proxy.gano()) {
                 this.tablero();
             }
-            console.log(chalk.bold.green('Fin del juego.'));
+            console.log(chalk.bold.green(this.language.translations.gameOver));
             setTimeout(() => {
                 playGame(cpu, jugador);
             }, 1000);
@@ -576,10 +574,15 @@ class SpanishLanguage {
   static translations = {
     welcome: "🎮 TRES EN RAYA - Sistema Multi-UI",
     turn: player => `🧩 Turno de ${player}`,
-    winner: player => `🏆 ¡Felicidades! ${player}, haz ganado`,
-    loser: player => `❌ ${player}, haz fallado`,
+    winner: "🏆 ¡Felicidades! haz ganado",
+    loser: "❌ Haz fallado",
     tied: "🤝 ¡Es un EMPATE! ¡Bien jugado!",
+    gameOver: "Fin del juego",
     reset: "🔄 Juego reiniciado",
+    inputOption: "Elige una opcion?: ",
+    inputCell: "Ingrese un numero?: ",
+    gameAbort: '¡Hasta luego! 👋',
+    orientation: (orientation) => `Orientacion: ${orientation}`,
     mainMenu: (cpu, player) => {
         return `Opciones:
         1. Iniciar juego
@@ -597,14 +600,37 @@ class SpanishLanguage {
 }
 
 class EnglishLanguage{
-    static translations = {}
+  static translations = {
+    welcome: "🎮 TIC TAC TOE - Multi-UI System",
+    turn: player => `🧩 ${player}'s turn`,
+    winner: player => `🏆 ${player} WINS! Congratulations!`,
+    loser: player => `❌ ${player} have lost`,
+    tied: "🤝 It's a TIE! Well played both!",
+    gameOver: "Game over!",
+    reset: "🔄 Game reset",
+    input: 'Ingrese un numero:',
+    gameAbort: '¡see you soon! 👋',
+    orientation: (orientation) => `Orientacion: ${orientation}`,    
+    mainMenu: (cpu, player) => {
+        return `Options:
+        1. Start game
+        2. Configure player(CPU=${cpu}, Jugador=${player})
+        3. Close windows`;
+    },
+    subMenu: ()=> {
+        return `Options:
+        1. Make move
+        2. Undo move
+        3. Show history
+        4. Back stage`;
+    }
+  };
 }
-
 
 
 function playGame(fichaCPU, fichaPlayer) {
     const proxy = new CuadriculaProxy(fichaCPU, fichaPlayer, new Cuadricula());
-    const ticTacToe = new TicTacToeDecorated(proxy);
+    const ticTacToe = new TicTacToeDecorated(proxy, 'es');
     ticTacToe.render();
 }
 
