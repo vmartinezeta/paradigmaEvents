@@ -560,6 +560,48 @@ class TicTacToeDecorated extends UIManager {
 
 }
 
+
+// 🌐 CAPA DE IDIOMAS - Estrategias de localización
+class LanguageStrategy {
+  static getStrategy(language) {
+    const strategies = {
+      es: SpanishLanguage,
+      en: EnglishLanguage
+    };
+    return strategies[language] || EnglishLanguage;
+  }
+}
+
+class SpanishLanguage {
+  static translations = {
+    welcome: "🎮 TRES EN RAYA - Sistema Multi-UI",
+    turn: player => `🧩 Turno de ${player}`,
+    winner: player => `🏆 ¡Felicidades! ${player}, haz ganado`,
+    loser: player => `❌ ${player}, haz fallado`,
+    tied: "🤝 ¡Es un EMPATE! ¡Bien jugado!",
+    reset: "🔄 Juego reiniciado",
+    mainMenu: (cpu, player) => {
+        return `Opciones:
+        1. Iniciar juego
+        2. Configurar fichas(CPU=${cpu}, Jugador=${player})
+        3. Salir`;
+    }, 
+    subMenu: ()=> {
+        return `Opciones:
+        1. Hacer movimiento
+        2. Deshacer último movimiento
+        3. Ver historial
+        4. Atras`;
+    }
+  };
+}
+
+class EnglishLanguage{
+    static translations = {}
+}
+
+
+
 function playGame(fichaCPU, fichaPlayer) {
     const proxy = new CuadriculaProxy(fichaCPU, fichaPlayer, new Cuadricula());
     const ticTacToe = new TicTacToeDecorated(proxy);
