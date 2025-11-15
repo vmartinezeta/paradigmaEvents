@@ -299,7 +299,7 @@ class UIManager extends EventEmitter {
     }
 
     async colocacionJugador() {
-        const numero = await this.inputConsole("Ingrese un numero de 1-9: ");
+        const numero = await this.inputConsole(this.language.translations.inputCell);
         const { ok, celda } = this.getCelda(+numero);
         if (!ok) {
             return this.colocacionJugador();
@@ -395,7 +395,7 @@ class UIManager extends EventEmitter {
                 this.readline.close();
                 break;
             default:
-                console.log('❌ Opción no válida');
+                console.log(this.language.translations.invalidOption);
                 this.promptMainMenu();
         }
     }
@@ -420,27 +420,22 @@ class UIManager extends EventEmitter {
 
     printSubMenu() {
         console.log(this.language.translations.subMenu());
-
     }
 
     async promptPlayer() {
-        // Si es modo CPU y es el turno de la CPU, entonces la CPU juega
         if (this.proxy.isCPU()) {
-            // Simulamos un pensamiento de la CPU
             setTimeout(() => {
                 this.colocacionCPU();
             }, 1000);
             return;
         }
 
-        // Es turno de un jugador humano, mostramos el menú
-        // console.log(`\n🎮 Turno del jugador: ${this.proxy.fichaEnJuego.simbolo}`);
         this.emit('turno:player', { turno: this.proxy.fichaEnJuego.simbolo });
-        const input = await this.inputConsole(this.language.translations.inputCell);
-        this.processMenuInput(input.trim());
+        const input = await this.inputConsole(this.language.translations.inputOption);
+        this.processSubMenuInput(input.trim());
     }
 
-    processMenuInput(option) {
+    processSubMenuInput(option) {
         switch (option) {
             case '1':
                 this.colocacionJugador();
@@ -450,7 +445,7 @@ class UIManager extends EventEmitter {
                 this.gameActive = false;
                 break;
             default:
-                console.log('❌ Opción no válida');
+                console.log(this.language.translations.invalidOption);
                 this.promptPlayer();
         }
     }
@@ -464,26 +459,26 @@ class TicTacToe extends UIManager {
 
     setUp() {
         this.on('turno:CPU', ({ turno }) => {
-            console.log('Turno de CPU = ', turno);
+            console.log(this.language.translations.turn(turno));
             this.tablero();
         });
 
         this.on('turno:player', ({ turno }) => {
-            console.log('Turno de Player = ', turno);
+            console.log(this.language.translations.turn(turno));
             this.printSubMenu();
         });
 
         this.on('ganador', ({ isCPU, linea }) => {
             if (isCPU) {
-                console.log('Haz fallado.');
+                console.log(this.language.translations.loser);
             } else {
-                console.log('Haz ganado.');
+                console.log(this.language.translations.winner);
             }
-            console.log('Orientacion: ', linea.orientacion);
+            console.log(this.language.translations.orientation(linea.orientacion));
         });
 
         this.on('empate', () => {
-            console.log('Empataron');
+            console.log(this.language.translations.tied);
         });
 
         this.on('gameOver', ({ cpu, jugador }) => {
@@ -491,7 +486,7 @@ class TicTacToe extends UIManager {
             if (this.proxy.hayGanador() && !this.proxy.gano()) {
                 this.tablero();
             }
-            console.log('Fin del juego.');
+            console.log(this.language.translations.gameOver);
             setTimeout(() => {
                 playGame(cpu, jugador);
             }, 1000);
@@ -558,8 +553,6 @@ class TicTacToeDecorated extends UIManager {
 
 }
 
-
-// 🌐 CAPA DE IDIOMAS - Estrategias de localización
 class LanguageStrategy {
   static getStrategy(language) {
     const strategies = {
@@ -580,8 +573,9 @@ class SpanishLanguage {
     gameOver: "Fin del juego",
     reset: "🔄 Juego reiniciado",
     inputOption: "Elige una opcion?: ",
-    inputCell: "Ingrese un numero?: ",
+    inputCell: "Ingrese un numero(1-9)?: ",
     gameAbort: '¡Hasta luego! 👋',
+    invalidOption: '❌ Opción no válida',
     orientation: (orientation) => `Orientacion: ${orientation}`,
     mainMenu: (cpu, player) => {
         return `Opciones:
@@ -602,15 +596,17 @@ class SpanishLanguage {
 class EnglishLanguage{
   static translations = {
     welcome: "🎮 TIC TAC TOE - Multi-UI System",
-    turn: player => `🧩 ${player}'s turn`,
-    winner: player => `🏆 ${player} WINS! Congratulations!`,
-    loser: player => `❌ ${player} have lost`,
+    turn: player => `🧩 ${player}´s turn`,
+    winner: "🏆 You WINS! Congratulations!",
+    loser: "❌ You have lost",
     tied: "🤝 It's a TIE! Well played both!",
     gameOver: "Game over!",
     reset: "🔄 Game reset",
-    input: 'Ingrese un numero:',
+    inputOption: "Do you select a option?: ",
+    inputCell: 'Do you insert a number(1-9)?: ',
     gameAbort: '¡see you soon! 👋',
-    orientation: (orientation) => `Orientacion: ${orientation}`,    
+    invalidOption: '❌ Invalid option',
+    orientation: (orientation) => `Orientation: ${orientation}`,
     mainMenu: (cpu, player) => {
         return `Options:
         1. Start game
@@ -622,7 +618,7 @@ class EnglishLanguage{
         1. Make move
         2. Undo move
         3. Show history
-        4. Back stage`;
+        4. Go to back`;
     }
   };
 }
@@ -630,7 +626,7 @@ class EnglishLanguage{
 
 function playGame(fichaCPU, fichaPlayer) {
     const proxy = new CuadriculaProxy(fichaCPU, fichaPlayer, new Cuadricula());
-    const ticTacToe = new TicTacToeDecorated(proxy, 'es');
+    const ticTacToe = new TicTacToeDecorated(proxy, 'en');
     ticTacToe.render();
 }
 
