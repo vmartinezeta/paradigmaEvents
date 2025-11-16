@@ -263,6 +263,63 @@ class CuadriculaProxy extends CPUPlayer {
 
 }
 
+class EventManager {
+  constructor(emitter) {
+    this.emitter = emitter;
+    this.handlers = new Map(); // evento -> [handlers]
+  }
+
+  register(event, handler, options = {}) {
+    const { once = false, replace = false } = options;
+    
+    // Remover handlers existentes si se solicita reemplazo
+    if (replace && this.handlers.has(event)) {
+      this.handlers.get(event).forEach(h => {
+        this.emitter.removeListener(event, h);
+      });
+      this.handlers.delete(event);
+    }
+
+    // Configurar listener
+    if (once) {
+      this.emitter.once(event, handler);
+    } else {
+      this.emitter.on(event, handler);
+    }
+
+    // Guardar referencia
+    if (!this.handlers.has(event)) {
+      this.handlers.set(event, []);
+    }
+    this.handlers.get(event).push(handler);
+  }
+
+  unregister(event, handler = null) {
+    if (handler) {
+      this.emitter.removeListener(event, handler);
+      const handlers = this.handlers.get(event);
+      if (handlers) {
+        const index = handlers.indexOf(handler);
+        if (index > -1) handlers.splice(index, 1);
+      }
+    } else {
+      // Remover todos los handlers del evento
+      const handlers = this.handlers.get(event) || [];
+      handlers.forEach(h => this.emitter.removeListener(event, h));
+      this.handlers.delete(event);
+    }
+  }
+
+  clear() {
+    this.handlers.forEach((handlers, event) => {
+      handlers.forEach(handler => {
+        this.emitter.removeListener(event, handler);
+      });
+    });
+    this.handlers.clear();
+  }
+}
+
 class UIManager extends EventEmitter {
     constructor(proxy, language) {
         super();
@@ -273,7 +330,7 @@ class UIManager extends EventEmitter {
             input: process.stdin,
             output: process.stdout
         });
-
+        this.eventBus = new EventManager(this);
         this.setUp();
     }
 
@@ -412,8 +469,10 @@ class UIManager extends EventEmitter {
     }
 
     async promptIntercambioFichas() {
-        console.log(`CPU=${this.proxy.ficha.simbolo}, Jugador=${this.proxy.jugador.ficha.simbolo}`);
-        const input = await this.inputConsole('Ingrese la ficha: ');
+        const cpu = this.proxy.ficha.simbolo;
+        const player = this.proxy.jugador.ficha.simbolo;
+        console.log(this.language.translations.showPlayers(cpu, player));
+        const input = await this.inputConsole(this.language.translations.inputPlayer);
         this.intercambiarFichas(input.trim().toLocaleLowerCase());
         this.promptMainMenu();
     }
@@ -458,17 +517,17 @@ class TicTacToe extends UIManager {
     }
 
     setUp() {
-        this.on('turno:CPU', ({ turno }) => {
+        this.eventBus.register('turno:CPU', ({ turno }) => {
             console.log(this.language.translations.turn(turno));
             this.tablero();
         });
 
-        this.on('turno:player', ({ turno }) => {
+        this.eventBus.register('turno:player', ({ turno }) => {
             console.log(this.language.translations.turn(turno));
             this.printSubMenu();
         });
 
-        this.on('ganador', ({ isCPU, linea }) => {
+        this.eventBus.register('ganador', ({ isCPU, linea }) => {
             if (isCPU) {
                 console.log(this.language.translations.loser);
             } else {
@@ -477,11 +536,11 @@ class TicTacToe extends UIManager {
             console.log(this.language.translations.orientation(linea.orientacion));
         });
 
-        this.on('empate', () => {
+        this.eventBus.register('empate', () => {
             console.log(this.language.translations.tied);
         });
 
-        this.on('gameOver', ({ cpu, jugador }) => {
+        this.eventBus.register('gameOver', ({ cpu, jugador }) => {
             this.readline.close();
             if (this.proxy.hayGanador() && !this.proxy.gano()) {
                 this.tablero();
@@ -506,17 +565,17 @@ class TicTacToeDecorated extends UIManager {
     }
 
     setUp() {
-        this.on('turno:CPU', ({ turno }) => {
+        this.eventBus.register('turno:CPU', ({ turno }) => {
             console.log(chalk.underline.bold(this.language.translations.turn(turno)));
             this.tablero();
         });
 
-        this.on('turno:player', ({ turno }) => {
+        this.eventBus.register('turno:player', ({ turno }) => {
             console.log(chalk.underline.bold(this.language.translations.turn(turno)));
             this.printSubMenu();
         });
 
-        this.on('ganador', ({ isCPU, linea }) => {
+        this.eventBus.register('ganador', ({ isCPU, linea }) => {
             if (isCPU) {
                 console.log(chalk.italic(this.language.translations.loser));
             } else {
@@ -525,11 +584,11 @@ class TicTacToeDecorated extends UIManager {
             console.log(chalk.bold(this.language.translations.orientation(linea.orientacion)));
         });
 
-        this.on('empate', () => {
+        this.eventBus.register('empate', () => {
             console.log(chalk.bold(this.language.translations.tied));
         });
 
-        this.on('gameOver', ({ cpu, jugador }) => {
+        this.eventBus.register('gameOver', ({ cpu, jugador }) => {
             this.readline.close();
             if (this.proxy.hayGanador() && !this.proxy.gano()) {
                 this.tablero();
@@ -574,8 +633,10 @@ class SpanishLanguage {
     reset: "🔄 Juego reiniciado",
     inputOption: "Elige una opcion?: ",
     inputCell: "Ingrese un numero(1-9)?: ",
+    inputPlayer: 'Ingrese la ficha?: ',
     gameAbort: '¡Hasta luego! 👋',
     invalidOption: '❌ Opción no válida',
+    showPlayers: (cpu, player)=> `CPU=${cpu} y player=${player}`,
     orientation: (orientation) => `Orientacion: ${orientation}`,
     mainMenu: (cpu, player) => {
         return `Opciones:
@@ -604,8 +665,10 @@ class EnglishLanguage{
     reset: "🔄 Game reset",
     inputOption: "Do you select a option?: ",
     inputCell: 'Do you insert a number(1-9)?: ',
+    inputPlayer: 'Do you insert player?: ',
     gameAbort: '¡see you soon! 👋',
     invalidOption: '❌ Invalid option',
+    showPlayers: (cpu, player)=> `CPU=${cpu} and player=${player}`,
     orientation: (orientation) => `Orientation: ${orientation}`,
     mainMenu: (cpu, player) => {
         return `Options:
